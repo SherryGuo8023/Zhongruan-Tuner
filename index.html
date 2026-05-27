@@ -186,19 +186,6 @@
   }
   .string-freq-label { font-size: 10px; color: #555; margin-top: 2px; }
 
-  .play-ref-btn {
-    display: block;
-    margin: 6px auto 0;
-    background: none;
-    border: 1px solid #444;
-    color: #aaa;
-    border-radius: 20px;
-    padding: 3px 10px;
-    font-size: 11px;
-    cursor: pointer;
-  }
-  .play-ref-btn:active { background: #333; }
-
   .tip {
     font-size: 12px;
     color: #555;
@@ -236,7 +223,7 @@
 
 <!-- 定弦参考 -->
 <div class="strings-section">
-  <div class="strings-title">点击"▶"播放参考音，拨弦后对照表盘</div>
+  <div class="strings-title">点击弦卡播放参考音，拨弦后对照表盘</div>
   <div class="strings-grid" id="strings-grid"></div>
 </div>
 
@@ -323,8 +310,11 @@ const KEY_TUNINGS = {
 
 const KEY_ORDER = ['C','G','F','D','♭B','A','♭E','E','♭A','B','♯F','♯C'];
 
-let currentKey = 'D';
-let STRINGS = KEY_TUNINGS['D'];
+let currentKey = 'G';
+let STRINGS = KEY_TUNINGS['G'];
+let selectedStringIndex = 0;
+let smoothedCents = 0;
+let lastStableReadAt = 0;
 
 // ── 渲染调式按钮 ───────────────────────────────────────────
 const keyGrid = document.getElementById('key-grid');
@@ -343,7 +333,9 @@ function selectKey(k) {
   document.getElementById('key-' + k).classList.add('active');
   currentKey = k;
   STRINGS = KEY_TUNINGS[k];
+  selectedStringIndex = 0;
   renderStringCards();
+  highlightString(selectedStringIndex);
 }
 
 function renderJianpu(text) {
@@ -362,12 +354,12 @@ function renderStringCards() {
     const card = document.createElement('div');
     card.className = 'string-card';
     card.id = `sc-${i}`;
+    card.onclick = () => playRef(i);
     card.innerHTML = `
       <div class="string-number">${s.label}</div>
       <div class="string-note">${s.note}</div>
       <div class="string-jianpu">${renderJianpu(s.jianpu)}</div>
       <div class="string-freq-label">${s.freq.toFixed(1)} Hz</div>
-      <button class="play-ref-btn" onclick="playRef(${i},event)">▶ 参考音</button>
     `;
     grid.appendChild(card);
   });
@@ -376,6 +368,10 @@ function renderStringCards() {
 renderStringCards();
 
 function highlightString(i) {
+  selectedStringIndex = i;
+  smoothedCents = 0;
+  lastStableReadAt = 0;
+  if (typeof drawMeter === 'function') drawMeter(0);
   document.querySelectorAll('.string-card').forEach(c => c.classList.remove('active-string'));
   const el = document.getElementById(`sc-${i}`);
   if (el) el.classList.add('active-string');
@@ -386,7 +382,7 @@ let refCtx = null;
 let refNode = null;
 
 function playRef(idx, e) {
-  e.stopPropagation();
+  if (e) e.stopPropagation();
   if (!refCtx) refCtx = new (window.AudioContext || window.webkitAudioContext)();
   if (refNode) { try { refNode.stop(); } catch(_){} }
   const freq = STRINGS[idx].freq;
@@ -454,6 +450,7 @@ function drawMeter(cents) {
 }
 
 drawMeter(0);
+highlightString(selectedStringIndex);
 
 // ── 音符名称 ──────────────────────────────────────────────
 const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
@@ -470,7 +467,7 @@ function freqToNote(freq) {
 
 // ── 麦克风 + 音高检测 ─────────────────────────────────────
 let audioCtx = null, analyser = null, micStream = null;
-let running = false, animFrame = null, smoothedCents = 0;
+let running = false, animFrame = null, lastDetectTime = 0;
 
 const startBtn     = document.getElementById('start-btn');
 const noteNameEl   = document.getElementById('note-name');
@@ -493,6 +490,7 @@ async function startMic() {
     analyser.smoothingTimeConstant = 0.1;
     audioCtx.createMediaStreamSource(stream).connect(analyser);
     running = true;
+    lastDetectTime = 0;
     startBtn.textContent = '停止调音';
     startBtn.classList.add('active');
     detect();
@@ -511,38 +509,43 @@ function stopMic() {
   noteNameEl.textContent  = '--';
   noteFreqEl.textContent  = '等待声音…';
   centValueEl.textContent = '';
+  lastStableReadAt = 0;
   drawMeter(0);
 }
 
 // YIN 算法
 function yin(buffer, sampleRate) {
   const N    = buffer.length;
-  const half = Math.floor(N / 2);
-  const diff = new Float32Array(half);
-  for (let tau = 1; tau < half; tau++) {
+  const minTau = Math.max(2, Math.floor(sampleRate / 800));
+  const maxTau = Math.min(Math.floor(sampleRate / 40), Math.floor(N / 2));
+  const diff = new Float32Array(maxTau + 1);
+
+  for (let tau = minTau; tau <= maxTau; tau++) {
     let s = 0;
-    for (let i = 0; i < half; i++) { const d = buffer[i] - buffer[i+tau]; s += d*d; }
+    for (let i = 0; i < N - tau; i++) {
+      const d = buffer[i] - buffer[i + tau];
+      s += d * d;
+    }
     diff[tau] = s;
   }
-  const cmnd = new Float32Array(half);
-  cmnd[0] = 1;
+  const cmnd = new Float32Array(maxTau + 1);
   let runSum = 0;
-  for (let tau = 1; tau < half; tau++) {
+  for (let tau = minTau; tau <= maxTau; tau++) {
     runSum += diff[tau];
-    cmnd[tau] = diff[tau] / (runSum / tau);
+    cmnd[tau] = diff[tau] / (runSum / (tau - minTau + 1));
   }
   const threshold = 0.15;
-  let tau = 2;
-  while (tau < half) {
+  let tau = minTau;
+  while (tau <= maxTau) {
     if (cmnd[tau] < threshold) {
-      while (tau + 1 < half && cmnd[tau+1] < cmnd[tau]) tau++;
+      while (tau + 1 <= maxTau && cmnd[tau+1] < cmnd[tau]) tau++;
       break;
     }
     tau++;
   }
-  if (tau === half || cmnd[tau] >= threshold) return -1;
-  const x0 = tau > 1 ? tau-1 : tau;
-  const x2 = tau < half-1 ? tau+1 : tau;
+  if (tau > maxTau || cmnd[tau] >= threshold) return -1;
+  const x0 = tau > minTau ? tau-1 : tau;
+  const x2 = tau < maxTau ? tau+1 : tau;
   let betterTau;
   if (x0 === tau) betterTau = cmnd[tau] <= cmnd[x2] ? tau : x2;
   else if (x2 === tau) betterTau = cmnd[tau] <= cmnd[x0] ? tau : x0;
@@ -553,8 +556,89 @@ function yin(buffer, sampleRate) {
   return sampleRate / betterTau;
 }
 
+function detectPitch(buffer, sampleRate) {
+  const size = buffer.length;
+  const correlations = [];
+  const minOffset = Math.floor(sampleRate / 800);
+  const maxOffset = Math.min(Math.floor(sampleRate / 40), Math.floor(size / 2));
+
+  for (let offset = minOffset; offset <= maxOffset; offset++) {
+    let sum = 0;
+    let left = 0;
+    let right = 0;
+    for (let i = 0; i < size - offset; i++) {
+      const a = buffer[i];
+      const b = buffer[i + offset];
+      sum += a * b;
+      left += a * a;
+      right += b * b;
+    }
+    correlations[offset] = sum / Math.sqrt(left * right);
+  }
+
+  let bestOffset = -1;
+  let bestCorrelation = 0;
+
+  for (let offset = minOffset + 1; offset < maxOffset - 1; offset++) {
+    const corr = correlations[offset] || 0;
+    if (corr > 0.35 && corr > correlations[offset - 1] && corr >= correlations[offset + 1]) {
+      bestCorrelation = corr;
+      bestOffset = offset;
+      break;
+    }
+  }
+
+  if (bestOffset <= 0) return -1;
+
+  const prev = correlations[bestOffset - 1] || 0;
+  const curr = correlations[bestOffset] || 0;
+  const next = correlations[bestOffset + 1] || 0;
+  const shift = (next - prev) / (2 * (2 * curr - next - prev));
+  return sampleRate / (bestOffset + shift);
+}
+
+function updateTuner(freq) {
+  const target = STRINGS[selectedStringIndex];
+  if (!target) return;
+  const current = freqToNote(freq);
+  lastStableReadAt = performance.now();
+
+  noteNameEl.textContent = target.note;
+  noteFreqEl.textContent = '目标 ' + target.note + ' ' + target.freq.toFixed(1) + ' Hz｜识别 ' + current.name + current.octave + ' ' + freq.toFixed(1) + ' Hz';
+  const cents = 1200 * Math.log2(freq / target.freq);
+  smoothedCents = smoothedCents * 0.35 + cents * 0.65;
+  const sc = Math.round(smoothedCents);
+  drawMeter(smoothedCents);
+
+  if (Math.abs(sc) < 5) {
+    centValueEl.textContent = '✓ 准确';
+    centValueEl.className = 'cent-value in-tune';
+  } else if (sc < 0) {
+    centValueEl.textContent = sc + ' cent  偏低，需拧紧';
+    centValueEl.className = 'cent-value flat';
+  } else {
+    centValueEl.textContent = '+' + sc + ' cent  偏高，需放松';
+    centValueEl.className = 'cent-value sharp';
+  }
+}
+
+function updateWaitingStatus(message) {
+  if (performance.now() - lastStableReadAt < 1200) return;
+  const target = STRINGS[selectedStringIndex];
+  if (!target) return;
+  noteNameEl.textContent = target.note;
+  noteFreqEl.textContent = '目标 ' + target.note + ' ' + target.freq.toFixed(1) + ' Hz｜识别 --（' + message + '）';
+}
+
 function detect() {
   if (!running) return;
+  const now = performance.now();
+  if (now - lastDetectTime < 80) {
+    animFrame = requestAnimationFrame(detect);
+    return;
+  }
+  lastDetectTime = now;
+
   const buf = new Float32Array(analyser.fftSize);
   analyser.getFloatTimeDomainData(buf);
 
@@ -562,28 +646,16 @@ function detect() {
   for (let i = 0; i < buf.length; i++) rms += buf[i]*buf[i];
   rms = Math.sqrt(rms / buf.length);
 
-  if (rms > 0.008) {
-    const freq = yin(buf, audioCtx.sampleRate);
+  if (rms > 0.003) {
+    let freq = detectPitch(buf, audioCtx.sampleRate);
+    if (freq < 40 || freq > 800) freq = yin(buf, audioCtx.sampleRate);
     if (freq > 40 && freq < 800) {
-      const info = freqToNote(freq);
-      if (info) {
-        noteNameEl.textContent = info.name + info.octave;
-        noteFreqEl.textContent = freq.toFixed(1) + ' Hz';
-        smoothedCents = smoothedCents * 0.15 + info.cents * 0.85;
-        const sc = Math.round(smoothedCents);
-        drawMeter(smoothedCents);
-        if (Math.abs(sc) < 5) {
-          centValueEl.textContent = '✓ 准确';
-          centValueEl.className = 'cent-value in-tune';
-        } else if (sc < 0) {
-          centValueEl.textContent = sc + ' cent  偏低，需拧紧';
-          centValueEl.className = 'cent-value flat';
-        } else {
-          centValueEl.textContent = '+' + sc + ' cent  偏高，需放松';
-          centValueEl.className = 'cent-value sharp';
-        }
-      }
+      updateTuner(freq);
+    } else {
+      updateWaitingStatus('声音不稳定');
     }
+  } else {
+    updateWaitingStatus('声音太弱');
   }
 
   animFrame = requestAnimationFrame(detect);
