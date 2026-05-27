@@ -154,6 +154,7 @@
 
   .string-number { font-size: 11px; color: #888; margin-bottom: 4px; }
   .string-note   { font-size: 24px; font-weight: 700; color: #e94560; }
+  .string-jianpu { font-size: 18px; font-weight: 700; color: #eee; margin-top: 2px; }
   .string-freq-label { font-size: 10px; color: #555; margin-top: 2px; }
 
   .play-ref-btn {
@@ -214,79 +215,79 @@
 <script>
 // ── 各调定弦数据 ────────────────────────────────────────────
 // 格式：每个调四根弦（四弦→一弦，低→高）
-// 模式：根音 · 纯四度 · 根音高八度 · 纯四度高八度
+// 中阮常用固定空弦：G D G D；简谱随 1=调名 改变
 const KEY_TUNINGS = {
   'C':  [
-    { label:'四弦', note:'C2',  freq:65.41  },
-    { label:'三弦', note:'F2',  freq:87.31  },
-    { label:'二弦', note:'C3',  freq:130.81 },
-    { label:'一弦', note:'F3',  freq:174.61 },
+    { label:'四弦', note:'G2',  freq:98.00,  jianpu:'低低5' },
+    { label:'三弦', note:'D3',  freq:146.83, jianpu:'低2' },
+    { label:'二弦', note:'G3',  freq:196.00, jianpu:'低5' },
+    { label:'一弦', note:'D4',  freq:293.66, jianpu:'2' },
   ],
   'G':  [
-    { label:'四弦', note:'G2',  freq:98.00  },
-    { label:'三弦', note:'C3',  freq:130.81 },
-    { label:'二弦', note:'G3',  freq:196.00 },
-    { label:'一弦', note:'C4',  freq:261.63 },
+    { label:'四弦', note:'G2',  freq:98.00,  jianpu:'低1' },
+    { label:'三弦', note:'D3',  freq:146.83, jianpu:'低5' },
+    { label:'二弦', note:'G3',  freq:196.00, jianpu:'1' },
+    { label:'一弦', note:'D4',  freq:293.66, jianpu:'5' },
   ],
   'F':  [
-    { label:'四弦', note:'F2',  freq:87.31  },
-    { label:'三弦', note:'♭B2', freq:116.54 },
-    { label:'二弦', note:'F3',  freq:174.61 },
-    { label:'一弦', note:'♭B3', freq:233.08 },
+    { label:'四弦', note:'G2',  freq:98.00,  jianpu:'低2' },
+    { label:'三弦', note:'D3',  freq:146.83, jianpu:'低6' },
+    { label:'二弦', note:'G3',  freq:196.00, jianpu:'2' },
+    { label:'一弦', note:'D4',  freq:293.66, jianpu:'6' },
   ],
   'D':  [
-    { label:'四弦', note:'D2',  freq:73.42  },
-    { label:'三弦', note:'G2',  freq:98.00  },
-    { label:'二弦', note:'D3',  freq:146.83 },
-    { label:'一弦', note:'G3',  freq:196.00 },
+    { label:'四弦', note:'G2',  freq:98.00,  jianpu:'低4' },
+    { label:'三弦', note:'D3',  freq:146.83, jianpu:'1' },
+    { label:'二弦', note:'G3',  freq:196.00, jianpu:'4' },
+    { label:'一弦', note:'D4',  freq:293.66, jianpu:'高1' },
   ],
   '♭B': [
-    { label:'四弦', note:'♭B1', freq:58.27  },
-    { label:'三弦', note:'♭E2', freq:77.78  },
-    { label:'二弦', note:'♭B2', freq:116.54 },
-    { label:'一弦', note:'♭E3', freq:155.56 },
+    { label:'四弦', note:'G2',  freq:98.00,  jianpu:'低低6' },
+    { label:'三弦', note:'D3',  freq:146.83, jianpu:'低3' },
+    { label:'二弦', note:'G3',  freq:196.00, jianpu:'低6' },
+    { label:'一弦', note:'D4',  freq:293.66, jianpu:'3' },
   ],
   'A':  [
-    { label:'四弦', note:'A1',  freq:55.00  },
-    { label:'三弦', note:'D2',  freq:73.42  },
-    { label:'二弦', note:'A2',  freq:110.00 },
-    { label:'一弦', note:'D3',  freq:146.83 },
+    { label:'四弦', note:'G2',  freq:98.00,  jianpu:'低低♭7' },
+    { label:'三弦', note:'D3',  freq:146.83, jianpu:'低4' },
+    { label:'二弦', note:'G3',  freq:196.00, jianpu:'低♭7' },
+    { label:'一弦', note:'D4',  freq:293.66, jianpu:'4' },
   ],
   '♭E': [
-    { label:'四弦', note:'♭E2', freq:77.78  },
-    { label:'三弦', note:'♭A2', freq:103.83 },
-    { label:'二弦', note:'♭E3', freq:155.56 },
-    { label:'一弦', note:'♭A3', freq:207.65 },
+    { label:'四弦', note:'G2',  freq:98.00,  jianpu:'低3' },
+    { label:'三弦', note:'D3',  freq:146.83, jianpu:'低7' },
+    { label:'二弦', note:'G3',  freq:196.00, jianpu:'3' },
+    { label:'一弦', note:'D4',  freq:293.66, jianpu:'7' },
   ],
   'E':  [
-    { label:'四弦', note:'E2',  freq:82.41  },
-    { label:'三弦', note:'A2',  freq:110.00 },
-    { label:'二弦', note:'E3',  freq:164.81 },
-    { label:'一弦', note:'A3',  freq:220.00 },
+    { label:'四弦', note:'G2',  freq:98.00,  jianpu:'低♭3' },
+    { label:'三弦', note:'D3',  freq:146.83, jianpu:'低♭7' },
+    { label:'二弦', note:'G3',  freq:196.00, jianpu:'♭3' },
+    { label:'一弦', note:'D4',  freq:293.66, jianpu:'♭7' },
   ],
   '♭A': [
-    { label:'四弦', note:'♭A1', freq:51.91  },
-    { label:'三弦', note:'♭D2', freq:69.30  },
-    { label:'二弦', note:'♭A2', freq:103.83 },
-    { label:'一弦', note:'♭D3', freq:138.59 },
+    { label:'四弦', note:'G2',  freq:98.00,  jianpu:'低低7' },
+    { label:'三弦', note:'D3',  freq:146.83, jianpu:'低♯4' },
+    { label:'二弦', note:'G3',  freq:196.00, jianpu:'低7' },
+    { label:'一弦', note:'D4',  freq:293.66, jianpu:'♯4' },
   ],
   'B':  [
-    { label:'四弦', note:'B1',  freq:61.74  },
-    { label:'三弦', note:'E2',  freq:82.41  },
-    { label:'二弦', note:'B2',  freq:123.47 },
-    { label:'一弦', note:'E3',  freq:164.81 },
+    { label:'四弦', note:'G2',  freq:98.00,  jianpu:'低低♯5' },
+    { label:'三弦', note:'D3',  freq:146.83, jianpu:'低♯2' },
+    { label:'二弦', note:'G3',  freq:196.00, jianpu:'低♯5' },
+    { label:'一弦', note:'D4',  freq:293.66, jianpu:'♯2' },
   ],
   '♯F': [
-    { label:'四弦', note:'♯F2', freq:92.50  },
-    { label:'三弦', note:'B2',  freq:123.47 },
-    { label:'二弦', note:'♯F3', freq:185.00 },
-    { label:'一弦', note:'B3',  freq:246.94 },
+    { label:'四弦', note:'G2',  freq:98.00,  jianpu:'低♯1' },
+    { label:'三弦', note:'D3',  freq:146.83, jianpu:'低♯5' },
+    { label:'二弦', note:'G3',  freq:196.00, jianpu:'♯1' },
+    { label:'一弦', note:'D4',  freq:293.66, jianpu:'♯5' },
   ],
   '♯C': [
-    { label:'四弦', note:'♯C2', freq:69.30  },
-    { label:'三弦', note:'♯F2', freq:92.50  },
-    { label:'二弦', note:'♯C3', freq:138.59 },
-    { label:'一弦', note:'♯F3', freq:185.00 },
+    { label:'四弦', note:'G2',  freq:98.00,  jianpu:'低低♯4' },
+    { label:'三弦', note:'D3',  freq:146.83, jianpu:'低♯1' },
+    { label:'二弦', note:'G3',  freq:196.00, jianpu:'低♯4' },
+    { label:'一弦', note:'D4',  freq:293.66, jianpu:'♯1' },
   ],
 };
 
@@ -325,6 +326,7 @@ function renderStringCards() {
     card.innerHTML = `
       <div class="string-number">${s.label}</div>
       <div class="string-note">${s.note}</div>
+      <div class="string-jianpu">${s.jianpu}</div>
       <div class="string-freq-label">${s.freq.toFixed(1)} Hz</div>
       <button class="play-ref-btn" onclick="playRef(${i},event)">▶ 参考音</button>
     `;
@@ -528,7 +530,7 @@ function detect() {
       if (info) {
         noteNameEl.textContent = info.name + info.octave;
         noteFreqEl.textContent = freq.toFixed(1) + ' Hz';
-        smoothedCents = smoothedCents * 0.6 + info.cents * 0.4;
+        smoothedCents = smoothedCents * 0.15 + info.cents * 0.85;
         const sc = Math.round(smoothedCents);
         drawMeter(smoothedCents);
         if (Math.abs(sc) < 5) {
