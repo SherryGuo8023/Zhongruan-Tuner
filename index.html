@@ -66,6 +66,14 @@
 
   .key-btn:active { opacity: 0.7; }
 
+  .key-summary {
+    margin-top: 8px;
+    text-align: center;
+    color: #ddd;
+    font-size: 14px;
+    font-weight: 600;
+  }
+
   /* ── 表盘 ── */
   .meter-wrap {
     position: relative;
@@ -155,6 +163,27 @@
   .string-number { font-size: 11px; color: #888; margin-bottom: 4px; }
   .string-note   { font-size: 24px; font-weight: 700; color: #e94560; }
   .string-jianpu { font-size: 18px; font-weight: 700; color: #eee; margin-top: 2px; }
+  .jianpu-note {
+    position: relative;
+    display: inline-block;
+    min-width: 0.8em;
+    padding-bottom: 0.35em;
+    line-height: 1;
+  }
+  .jianpu-note.low1::after,
+  .jianpu-note.low2::after {
+    position: absolute;
+    left: 50%;
+    bottom: -0.06em;
+    transform: translateX(-50%);
+    font-size: 0.75em;
+    line-height: 1;
+  }
+  .jianpu-note.low1::after { content: "."; }
+  .jianpu-note.low2::after {
+    content: "..";
+    letter-spacing: 0.08em;
+  }
   .string-freq-label { font-size: 10px; color: #555; margin-top: 2px; }
 
   .play-ref-btn {
@@ -187,6 +216,7 @@
 <div class="key-section">
   <div class="key-section-title">选择调式</div>
   <div class="key-grid" id="key-grid"></div>
+  <div class="key-summary" id="key-summary"></div>
 </div>
 
 <!-- 表盘 -->
@@ -239,7 +269,7 @@ const KEY_TUNINGS = {
     { label:'四弦', note:'G2',  freq:98.00,  jianpu:'低4' },
     { label:'三弦', note:'D3',  freq:146.83, jianpu:'1' },
     { label:'二弦', note:'G3',  freq:196.00, jianpu:'4' },
-    { label:'一弦', note:'D4',  freq:293.66, jianpu:'高1' },
+    { label:'一弦', note:'D4',  freq:293.66, jianpu:'1' },
   ],
   '♭B': [
     { label:'四弦', note:'G2',  freq:98.00,  jianpu:'低低6' },
@@ -298,6 +328,7 @@ let STRINGS = KEY_TUNINGS['D'];
 
 // ── 渲染调式按钮 ───────────────────────────────────────────
 const keyGrid = document.getElementById('key-grid');
+const keySummary = document.getElementById('key-summary');
 KEY_ORDER.forEach(k => {
   const btn = document.createElement('button');
   btn.className = 'key-btn' + (k === currentKey ? ' active' : '');
@@ -315,9 +346,17 @@ function selectKey(k) {
   renderStringCards();
 }
 
+function renderJianpu(text) {
+  const match = text.match(/^(低低|低)?([♭♯]?)([1-7])$/);
+  if (!match) return text;
+  const lowClass = match[1] === '低低' ? ' low2' : match[1] === '低' ? ' low1' : '';
+  return `${match[2]}<span class="jianpu-note${lowClass}">${match[3]}</span>`;
+}
+
 // ── 渲染定弦卡片 ──────────────────────────────────────────
 function renderStringCards() {
   const grid = document.getElementById('strings-grid');
+  keySummary.innerHTML = `1=${currentKey}（${STRINGS.map(s => renderJianpu(s.jianpu)).join(' ') }）`;
   grid.innerHTML = '';
   STRINGS.forEach((s, i) => {
     const card = document.createElement('div');
@@ -326,7 +365,7 @@ function renderStringCards() {
     card.innerHTML = `
       <div class="string-number">${s.label}</div>
       <div class="string-note">${s.note}</div>
-      <div class="string-jianpu">${s.jianpu}</div>
+      <div class="string-jianpu">${renderJianpu(s.jianpu)}</div>
       <div class="string-freq-label">${s.freq.toFixed(1)} Hz</div>
       <button class="play-ref-btn" onclick="playRef(${i},event)">▶ 参考音</button>
     `;
